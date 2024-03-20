@@ -408,3 +408,150 @@ func TestCalculateSalesRate(t *testing.T) {
 ```
 
 You could run that test now, everything should work fine.
+
+### Application architecture
+
+In the previous examples, we've seen how `interface`s can be used to decouple certain parts of your code from relying on concrete types. For instance, the `calculateSalesRate()` function is totally flexible about what you pass to it — the only thing that matters is that it satisfies the `ShopModel` interface.
+
+You can extend this idea to create decoupled 'layers' in larger projects.
+
+Let's say that you are building a web application which interacts with a database. If you create an `interface` that describes the exact `method`s for interacting with the database, you can refer to the `interface` throughout your HTTP handlers instead of a concrete type. Because the HTTP handlers only refer to an `interface`, this helps to decouple the HTTP layer and database-interaction layer. It makes it easier to work on the layers independently, and to swap out one layer in the future without affecting the other.
+
+I've written about this pattern in this [previous blog post](https://www.alexedwards.net/blog/organising-database-access), which goes into more detail and provides some practical example code.
+
+## What is the empty interface?
+
+If you've been programming with Go for a while, you've probably come across the `empty` `interface` type: `interface{}`. This can be a bit confusing, but I'll try to explain it here.
+
+At the start of this blog post I said:
+
+- An `interface` `type` in Go is kind of like a definition. It defines and describes the exact `method`s that some other `type` must have.
+
+The `empty` `interface` `type` essentially describes no `method`s. It has no rules. And because of that, it follows that any and every object satisfies the `empty` `interface`.
+
+Or to put it in a more plain-English way, the `empty` `interface` `type` `interface{}` is kind of like a wildcard. Wherever you see it in a declaration (such as a variable, function parameter or struct field) you can use an object of any `type`.
+
+Take a look at the following code:
+
+```go
+package main
+
+import "fmt"
+
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    fmt.Printf("%+v", person)
+}
+```
+
+In this code snippet we initialize a person `map`, which uses the `string` `type` for keys and the `empty` `interface` `type` `interface{}` for values. We've assigned three different `type`s as the `map` values (a `string`, `int` and `float32`) — and that's OK. Because objects of any and every type satisfy the `empty interface`, the code will work just fine.
+
+You can give it a try, and when you run it you should see some output which looks like this:
+
+```
+map[age:21 height:167.64 name:Alice]
+```
+
+But there's an important thing to point out when it comes to retrieving and using a value from this map.
+
+For example, let's say that we want to get the "`age`" value and increment it by 1. If you write something like the following code, it will fail to compile:
+
+```go
+package main
+
+import "log"
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    person["age"] = person["age"] + 1
+
+    fmt.Printf("%+v", person)
+}
+```
+
+And you'll get the following error message:
+
+```
+invalid operation: person["age"] + 1 (mismatched types interface {} and int)
+```
+
+This happens because the value stored in the `map` takes on the `type` `interface{}`, and ceases to have it's original, underlying, `type` of `int`. Because it's no longer an `int` type we cannot add 1 to it.
+
+To get around this this, you need to `type` assert the value back to an `int` before using it. Like so:
+
+```go
+package main
+
+import "log"
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    age, ok := person["age"].(int)
+    if !ok {
+        log.Fatal("could not assert value to int")
+        return
+    }
+
+    person["age"] = age + 1
+
+    log.Printf("%+v", person)
+}
+```
+
+If you run this now, everything should work as expected:
+
+```
+2009/11/10 23:00:00 map[age:22 height:167.64 name:Alice]
+```
+
+So when should you use the `empty` `interface` `type` in your own code?
+
+The answer is probably not that often. If you find yourself reaching for it, pause and consider whether using `interface{}` is really the right option. As a general rule it's clearer, safer and more performant to use `concrete` `type`s — or `non-empty` `interface` `types` — instead. In the code snippet above, it would have been more appropriate to define a `Person` `struct` with relevant typed `fields` similar to this:
+
+```go
+type Person struct {
+    Name   string
+    Age    int
+    Height float32
+}
+```
+
+But that said, the `empty` `interface` is useful in situations where you need to accept and work with unpredictable or user-defined types. You'll see it used in a number of places throughout the standard library for that exact reason, such as in the `gob.Encode`, `fmt.Print` and `template.Execute` functions.
+
+## The any identifier
+
+There is a predeclared identifier called `any`, which is an alias for the empty interface `interface{}`
+
+The `any` identifier is straight-up syntactic sugar – using it in your code is equivalent in all ways to using `interface{}` – it means exactly the same thing and has exactly the same behavior. So writing `map[string]any` in your code is exactly the same as writing `map[string]interface{}` in terms of it's behavior.
+
+n most modern Go codebases, you'll normally see any being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
+
+## Common and useful interface types
+
+Lastly, here's a short list of some of the most common and useful interfaces in the standard library. If you're not familiar with them already, then I recommend taking out a bit of time to look at the relevant documentation for them.
+
+- [builtin.Error](https://pkg.go.dev/builtin/#error)
+- [fmt.Stringer](https://pkg.go.dev/fmt/#Stringer)
+- [io.Reader](https://pkg.go.dev/io/#Reader)
+- [io.Writer](https://pkg.go.dev/io/#Writer)
+- [io.ReadWriteCloser](https://pkg.go.dev/io/#ReadWriteCloser)
+- [http.ResponseWriter](https://pkg.go.dev/net/http/#ResponseWriter)
+- [http.Handler](https://pkg.go.dev/net/http/#Handler)
+
+There is also a longer and more comprehensive listing of standard libraries available in [this gist](https://gist.github.com/asukakenji/ac8a05644a2e98f1d5ea8c299541fce9).
