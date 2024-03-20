@@ -18,9 +18,9 @@ One example of an `interface` `type` from the standard library is the `fmt.Strin
 }
 ```
 
-We say that something **satisfies this interface** (or **implements this `interface`**) if it has a method with the exact signature `String() string`.
+We say that something **satisfies this interface** (or **implements this `interface`**) if it has a `method` with the exact signature `String() string`.
 
-For example, the following `Book` `type` satisifies the `interface` because it has a `String() string` method:
+For example, the following `Book` `type` satisifies the `interface` because it has a `String() string` `method`:
 
 ```go
 `type` Book struct {
@@ -33,7 +33,7 @@ func (b Book) String() string {
 }
 ```
 
-It's not really important what this `Book` `type` is or does. The only thing that matters is that is has a method called `String()` which returns a `string` value.
+It's not really important what this `Book` `type` is or does. The only thing that matters is that is has a `method` called `String()` which returns a `string` value.
 
 Or, as another example, the following `Count` `type` also satisfies the `fmt.Stringer` `interface` — again because it has a method with the exact signature `String() string`.
 
@@ -47,7 +47,7 @@ func (c Count) String() string {
 
 The important thing to grasp is that we have two different `type`s, `Book` and `Count`, which do different things. But the thing they have in common is that they both satisfy the `fmt.Stringer` `interface`.
 
-You can think of this the other way around too. If you know that an object satisfies the `fmt.Stringer` interface, you can rely on it having a method with the exact signature `String() string` that you can call.
+You can think of this the other way around too. If you know that an object satisfies the `fmt.Stringer` interface, you can rely on it having a `method` with the exact signature `String() string` that you can call.
 
 Now for the important part.
 
@@ -61,9 +61,9 @@ func WriteLog(s fmt.Stringer) {
 }
 ```
 
-Because this `WriteLog()` function uses the `fmt.Stringer` `interface` `type` in its parameter declaration, we can pass in any object that satisfies the `fmt.Stringer` `interface`. For example, we could pass either of the `Book` and `Count` `type`s that we made earlier to the `WriteLog()` method, and the code would work OK.
+Because this `WriteLog()` function uses the `fmt.Stringer` `interface` `type` in its parameter declaration, we can pass in any object that satisfies the `fmt.Stringer` `interface`. For example, we could pass either of the `Book` and `Count` `type`s that we made earlier to the `WriteLog()` `method`, and the code would work OK.
 
-Additionally, because the object being passed in satisfies the `fmt.Stringer` `interface`, we know that it has a `String() string` method that the `WriteLog()` function can safely call.
+Additionally, because the object being passed in satisfies the `fmt.Stringer` `interface`, we know that it has a `String() string` `method` that the `WriteLog()` function can safely call.
 
 ```go
 package main
@@ -145,7 +145,7 @@ The first thing you need to know is that Go has an `io.Writer` `interface` `type
 }
 ```
 
-And we can leverage the fact that both `bytes.Buffer` and the `os.File` `type` satisfy this interface, due to them having the `bytes.Buffer.Write()` and `os.File.Write()` methods respectively.
+And we can leverage the fact that both `bytes.Buffer` and the `os.File` `type` satisfy this `interface`, due to them having the `bytes.Buffer.Write()` and `os.File.Write()` `method`s respectively.
 
 Let's take a look at a simple implementation:
 
@@ -205,10 +205,206 @@ func main() {
 }
 ```
 
-Of course, this is just a toy example (and there are other ways we could structure the code to achieve the same end result). But it nicely illustrates the benefit of using an `interface` — we can create the `Customer.WriteJSON()` method once, and we can call that method any time that we want to write to something that satisfies the `io.Writer` `interface`.
+Of course, this is just a toy example (and there are other ways we could structure the code to achieve the same end result). But it nicely illustrates the benefit of using an `interface` — we can create the `Customer.WriteJSON()` `method` once, and we can call that `method` any time that we want to write to something that satisfies the `io.Writer` `interface`.
 
 But if you're new to Go, this still begs a couple of questions: How do you know that the `io.Writer` `interface` even exists? And how do you know in advance that `bytes.Buffer` and `os.File` both satisfy it?
 
 There's no easy shortcut here I'm afraid — you simply need to build up experience and familiarity with the `interfaces` and different `type`s in the standard library. Spending time thoroughly reading the standard library documentation, and looking at other people's code will help here. But as a quick-start I've included a list of some of the most useful interface `type`s at the end of this post.
 
 But even if you don't use the interfaces from the standard library, there's nothing to stop you from creating and using your own interface `type`s. We'll cover how to do that next.
+
+### Unit testing and mocking
+
+To help illustrate how interfaces can be used to assist in unit testing, let's take a look at a slightly more complex example.
+
+Let's say you run a shop, and you store information about the number of customers and sales in a PostgreSQL database. You want to write some code that calculates the sales rate (i.e. sales per customer) for the past 24 hours, rounded to 2 decimal places.
+
+A minimal implementation of the code for that could look something like this:
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "time"
+    "database/sql"
+    _ "github.com/lib/pq"
+)
+
+type ShopDB struct {
+    *sql.DB
+}
+
+func (sdb *ShopDB) CountCustomers(since time.Time) (int, error) {
+    var count int
+    err := sdb.QueryRow("SELECT count(*) FROM customers WHERE timestamp > $1", since).Scan(&count)
+    return count, err
+}
+
+func (sdb *ShopDB) CountSales(since time.Time) (int, error) {
+    var count int
+    err := sdb.QueryRow("SELECT count(*) FROM sales WHERE timestamp > $1", since).Scan(&count)
+    return count, err
+}
+
+func main() {
+    db, err := sql.Open("postgres", "postgres://user:pass@localhost/db")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    shopDB := &ShopDB{db}
+    sr, err := calculateSalesRate(shopDB)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf(sr)
+}
+
+func calculateSalesRate(sdb *ShopDB) (string, error) {
+    since := time.Now().Add(-24 * time.Hour)
+
+    sales, err := sdb.CountSales(since)
+    if err != nil {
+        return "", err
+    }
+
+    customers, err := sdb.CountCustomers(since)
+    if err != nil {
+        return "", err
+    }
+
+    rate := float64(sales) / float64(customers)
+    return fmt.Sprintf("%.2f", rate), nil
+}
+```
+
+Now, what if we want to create a unit test for the `calculateSalesRate()` function to make sure that the math logic in it is working correctly?
+
+Currently this is a bit of a pain. We would need to set up a test instance of our PostgreSQL database, along with setup and teardown scripts to scaffold the database with dummy data. That's quite lot of work when all we really want to do is test our math logic.
+
+So what can we do? You guessed it — `interface`s to the rescue!
+
+A solution here is to create our own `interface` `type` which describes the `CountSales()` and `CountCustomers()` `method`s that the `calculateSalesRate()` function relies on. Then we can update the signature of `calculateSalesRate()` to use this custom `interface` `type` as a parameter, instead of the concrete `*ShopDB` `type`.
+
+```go
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"time"
+
+	_ "github.com/lib/pq"
+)
+
+// Create our own custom ShopModel interface. Notice that it is perfectly
+// fine for an interface to describe multiple methods, and that it should
+// describe input parameter types as well as return value types.
+type ShopModel interface {
+	CountCustomers(time.Time) (int, error)
+	CountSales(time.Time) (int, error)
+}
+
+// The ShopDB type satisfies our new custom ShopModel interface, because it
+// has the two necessary methods -- CountCustomers() and CountSales().
+type ShopDB struct {
+	// NOTE
+	// (!) this struct has no explicit fields... this is an "embedded" anonymous field
+	// which is a pointer to the sql.DB struct from the database/sql package
+	// you are effectively embedding all of its exported methods and fields into this new struct
+	*sql.DB
+}
+
+func (sdb *ShopDB) CountCustomers(since time.Time) (int, error) {
+	var count int
+	err := sdb.QueryRow("SELECT count(*) FROM customers WHERE timestamp > $1", since).Scan(&count)
+	return count, err
+}
+
+func (sdb *ShopDB) CountSales(since time.Time) (int, error) {
+	var count int
+	err := sdb.QueryRow("SELECT count(*) FROM sales WHERE timestamp > $1", since).Scan(&count)
+	return count, err
+}
+
+func main() {
+	db, err := sql.Open("postgres", "postgres://user:pass@localhost/db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	shopDB := &ShopDB{db}
+	sr, err := calculateSalesRate(shopDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf(sr)
+}
+
+// Swap this to use the ShopModel interface type as the parameter, instead of the
+// concrete *ShopDB type.
+func calculateSalesRate(sm ShopModel) (string, error) {
+	since := time.Now().Add(-24 * time.Hour)
+
+	sales, err := sm.CountSales(since)
+	if err != nil {
+		return "", err
+	}
+
+	customers, err := sm.CountCustomers(since)
+	if err != nil {
+		return "", err
+	}
+
+	rate := float64(sales) / float64(customers)
+	return fmt.Sprintf("%.2f", rate), nil
+}
+
+```
+
+With that done, it's straightforward for us to create a mock which satisfies our `ShopModel` `interface`. We can then use that mock during unit tests to test that the math logic in our `calculateSalesRate()` function works correctly. Like so:
+
+```go
+// main_test.go
+
+package main
+
+import (
+    "testing"
+    "time"
+)
+
+type MockShopDB struct{}
+
+func (m *MockShopDB) CountCustomers(_ time.Time) (int, error) {
+    return 1000, nil
+}
+
+func (m *MockShopDB) CountSales(_ time.Time) (int, error) {
+    return 333, nil
+}
+
+func TestCalculateSalesRate(t *testing.T) {
+    // Initialize the mock.
+    m := &MockShopDB{}
+    // Pass the mock to the calculateSalesRate() function.
+    sr, err := calculateSalesRate(m)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    // Check that the return value is as expected, based on the mocked
+    // inputs.
+    exp := "0.33"
+    if sr != exp {
+        t.Fatalf("got %v; expected %v", sr, exp)
+    }
+}
+```
+
+You could run that test now, everything should work fine.
