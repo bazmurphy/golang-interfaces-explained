@@ -6,13 +6,13 @@ import (
 	"strconv"
 )
 
-`type` Stringer interface {
+type Stringer interface {
 	String() string
 }
 
 // Declare a Book `type` which satisfies the fmt.Stringer interface.
 // Book satisfies/implements the "Stringer interface"
-`type` Book struct {
+type Book struct {
 	Title  string
 	Author string
 }
@@ -24,7 +24,7 @@ func (b Book) String() string {
 
 // Declare a Count `type` which satisfies the fmt.Stringer interface.
 // Count also satisfies/implements the "Stringer interface"
-`type` Count int
+type Count int
 
 // because it has a Method with the exact signature of Stringer "String() string"
 func (c Count) String() string {

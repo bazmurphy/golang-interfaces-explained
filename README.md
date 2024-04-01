@@ -2,7 +2,7 @@
 
 1. Provide a plain-English explanation of what `interfaces` are;
 2. Explain why they are useful and how you might want to use them in your code;
-3. Talk about what `interface{}` (the empty `interface`) and any are;
+3. Talk about what `interface{}` (the empty `interface`) and `any` are;
 4. And run through some of the helpful `interface` `type`s that you'll find in the standard library.
 
 ## What is an interface in Go?
@@ -13,7 +13,7 @@ It defines and describes the exact methods that some other `type` must have.
 One example of an `interface` `type` from the standard library is the `fmt.Stringer` `interface`, which looks like this:
 
 ```go
-`type` Stringer interface {
+type Stringer interface {
     String() string
 }
 ```
@@ -23,7 +23,7 @@ We say that something **satisfies this interface** (or **implements this `interf
 For example, the following `Book` `type` satisifies the `interface` because it has a `String() string` method:
 
 ```go
-`type` Book struct {
+type Book struct {
   Title string
   Author string
 }
@@ -38,7 +38,7 @@ It's not really important what this `Book` `type` is or does. The only thing tha
 Or, as another example, the following `Count` `type` also satisfies the `fmt.Stringer` `interface` — again because it has a method with the exact signature `String() string`.
 
 ```go
-`type` Count int
+type Count int
 
 func (c Count) String() string {
     return strconv.Itoa(int(c))
@@ -140,7 +140,7 @@ This is a scenario where we can use Go's interfaces to help reduce boilerplate c
 The first thing you need to know is that Go has an `io.Writer` `interface` `type` which looks like this:
 
 ```go
-`type` Writer interface {
+type Writer interface {
   Write(p []byte) (n int, err error)
 }
 ```
@@ -212,3 +212,340 @@ But if you're new to Go, this still begs a couple of questions: How do you know 
 There's no easy shortcut here I'm afraid — you simply need to build up experience and familiarity with the `interfaces` and different `type`s in the standard library. Spending time thoroughly reading the standard library documentation, and looking at other people's code will help here. But as a quick-start I've included a list of some of the most useful interface `type`s at the end of this post.
 
 But even if you don't use the interfaces from the standard library, there's nothing to stop you from creating and using your own interface `type`s. We'll cover how to do that next.
+
+### Unit testing and mocking
+
+To help illustrate how interfaces can be used to assist in unit testing, let's take a look at a slightly more complex example.
+
+Let's say you run a shop, and you store information about the number of customers and sales in a PostgreSQL database. You want to write some code that calculates the sales rate (i.e. sales per customer) for the past 24 hours, rounded to 2 decimal places.
+
+A minimal implementation of the code for that could look something like this:
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "time"
+    "database/sql"
+    _ "github.com/lib/pq"
+)
+
+type ShopDB struct {
+    *sql.DB
+}
+
+func (sdb *ShopDB) CountCustomers(since time.Time) (int, error) {
+    var count int
+    err := sdb.QueryRow("SELECT count(*) FROM customers WHERE timestamp > $1", since).Scan(&count)
+    return count, err
+}
+
+func (sdb *ShopDB) CountSales(since time.Time) (int, error) {
+    var count int
+    err := sdb.QueryRow("SELECT count(*) FROM sales WHERE timestamp > $1", since).Scan(&count)
+    return count, err
+}
+
+func main() {
+    db, err := sql.Open("postgres", "postgres://user:pass@localhost/db")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+
+    shopDB := &ShopDB{db}
+    sr, err := calculateSalesRate(shopDB)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf(sr)
+}
+
+func calculateSalesRate(sdb *ShopDB) (string, error) {
+    since := time.Now().Add(-24 * time.Hour)
+
+    sales, err := sdb.CountSales(since)
+    if err != nil {
+        return "", err
+    }
+
+    customers, err := sdb.CountCustomers(since)
+    if err != nil {
+        return "", err
+    }
+
+    rate := float64(sales) / float64(customers)
+    return fmt.Sprintf("%.2f", rate), nil
+}
+```
+
+Now, what if we want to create a unit test for the `calculateSalesRate()` function to make sure that the math logic in it is working correctly?
+
+Currently this is a bit of a pain. We would need to set up a test instance of our PostgreSQL database, along with setup and teardown scripts to scaffold the database with dummy data. That's quite lot of work when all we really want to do is test our math logic.
+
+So what can we do? You guessed it — interfaces to the rescue!
+
+A solution here is to create our own interface type which describes the `CountSales()` and `CountCustomers()` methods that the `calculateSalesRate()` function relies on. Then we can update the signature of `calculateSalesRate()` to use this custom interface type as a parameter, instead of the concrete `*ShopDB` type.
+
+Like so:
+
+```go
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"time"
+
+	_ "github.com/lib/pq"
+)
+
+// Create our own custom ShopModel interface. Notice that it is perfectly
+// fine for an interface to describe multiple methods, and that it should
+// describe input parameter types as well as return value types.
+type ShopModel interface {
+	CountCustomers(time.Time) (int, error)
+	CountSales(time.Time) (int, error)
+}
+
+// The ShopDB type satisfies our new custom ShopModel interface, because it
+// has the two necessary methods -- CountCustomers() and CountSales().
+type ShopDB struct {
+	*sql.DB
+}
+
+func (sdb *ShopDB) CountCustomers(since time.Time) (int, error) {
+	var count int
+	err := sdb.QueryRow("SELECT count(*) FROM customers WHERE timestamp > $1", since).Scan(&count)
+	return count, err
+}
+
+func (sdb *ShopDB) CountSales(since time.Time) (int, error) {
+	var count int
+	err := sdb.QueryRow("SELECT count(*) FROM sales WHERE timestamp > $1", since).Scan(&count)
+	return count, err
+}
+
+func main() {
+	db, err := sql.Open("postgres", "postgres://user:pass@localhost/db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	shopDB := &ShopDB{db}
+	sr, err := calculateSalesRate(shopDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf(sr)
+}
+
+// Swap this to use the ShopModel interface type as the parameter, instead of the
+// concrete *ShopDB type.
+func calculateSalesRate(sm ShopModel) (string, error) {
+	since := time.Now().Add(-24 * time.Hour)
+
+	sales, err := sm.CountSales(since)
+	if err != nil {
+		return "", err
+	}
+
+	customers, err := sm.CountCustomers(since)
+	if err != nil {
+		return "", err
+	}
+
+	rate := float64(sales) / float64(customers)
+	return fmt.Sprintf("%.2f", rate), nil
+}
+```
+
+With that done, it's straightforward for us to create a mock which satisfies our `ShopModel` interface. We can then use that mock during unit tests to test that the math logic in our `calculateSalesRate()` function works correctly. Like so:
+
+```go
+package main
+
+import (
+    "testing"
+    "time"
+)
+
+type MockShopDB struct{}
+
+func (m *MockShopDB) CountCustomers(_ time.Time) (int, error) {
+    return 1000, nil
+}
+
+func (m *MockShopDB) CountSales(_ time.Time) (int, error) {
+    return 333, nil
+}
+
+func TestCalculateSalesRate(t *testing.T) {
+    // Initialize the mock.
+    m := &MockShopDB{}
+    // Pass the mock to the calculateSalesRate() function.
+    sr, err := calculateSalesRate(m)
+    if err != nil {
+        t.Fatal(err)
+    }
+
+    // Check that the return value is as expected, based on the mocked
+    // inputs.
+    exp := "0.33"
+    if sr != exp {
+        t.Fatalf("got %v; expected %v", sr, exp)
+    }
+}
+```
+
+You could run that test now, everything should work fine.
+
+### Application architecture
+
+In the previous examples, we've seen how interfaces can be used to decouple certain parts of your code from relying on concrete types. For instance, the `calculateSalesRate()` function is totally flexible about what you pass to it — the only thing that matters is that it satisfies the ShopModel interface.
+
+You can extend this idea to create decoupled 'layers' in larger projects.
+
+Let's say that you are building a web application which interacts with a database. If you create an interface that describes the exact methods for interacting with the database, you can refer to the interface throughout your HTTP handlers instead of a concrete type. Because the HTTP handlers only refer to an interface, this helps to decouple the HTTP layer and database-interaction layer. It makes it easier to work on the layers independently, and to swap out one layer in the future without affecting the other.
+
+I've written about this pattern in this [previous blog post](https://www.alexedwards.net/blog/organising-database-access), which goes into more detail and provides some practical example code.
+
+## What is the empty interface?
+
+If you've been programming with Go for a while, you've probably come across the empty interface type: `interface{}`. This can be a bit confusing, but I'll try to explain it here.
+
+At the start of this blog post I said:
+
+    An interface type in Go is kind of like a definition. It defines and describes the exact methods that some other type must have.
+
+The empty interface type essentially describes no methods. It has no rules. And because of that, it follows that any and every object satisfies the empty interface.
+
+Or to put it in a more plain-English way, the empty interface type interface{} is kind of like a wildcard. Wherever you see it in a declaration (such as a variable, function parameter or struct field) you can use an object of any type.
+
+Take a look at the following code:
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    fmt.Printf("%+v", person)
+}
+```
+
+In this code snippet we initialize a `person` map, which uses the `string` type for keys and the empty interface type `interface{}` for values. We've assigned three different types as the map values (a `string`, `int` and `float32`) — and that's OK. Because objects of any and every type satisfy the empty interface, the code will work just fine.
+
+You can give it a try here, and when you run it you should see some output which looks like this:
+
+```
+map[age:21 height:167.64 name:Alice]
+```
+
+But there's an important thing to point out when it comes to retrieving and using a value from this map.
+
+For example, let's say that we want to get the `"age"` value and increment it by 1. If you write something like the following code, it will fail to compile:
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    person["age"] = person["age"] + 1
+
+    fmt.Printf("%+v", person)
+}
+```
+
+And you'll get the following error message:
+
+```
+invalid operation: person["age"] + 1 (mismatched types interface {} and int)
+```
+
+This happens because the value stored in the map takes on the type `interface{}`, and ceases to have it's original, underlying, type of `int`. Because it's no longer an `int` type we cannot add 1 to it.
+
+To get around this this, you need to type assert the value back to an `int` before using it. Like so:
+
+```go
+package main
+
+import "log"
+
+func main() {
+    person := make(map[string]interface{}, 0)
+
+    person["name"] = "Alice"
+    person["age"] = 21
+    person["height"] = 167.64
+
+    age, ok := person["age"].(int)
+    if !ok {
+        log.Fatal("could not assert value to int")
+        return
+    }
+
+    person["age"] = age + 1
+
+    log.Printf("%+v", person)
+}
+```
+
+If you run this now, everything should work as expected:
+
+```
+map[age:22 height:167.64 name:Alice]
+```
+
+So when should you use the empty interface type in your own code?
+
+The answer is probably not that often. If you find yourself reaching for it, pause and consider whether using `interface{}` is really the right option. As a general rule it's clearer, safer and more performant to use concrete types — or non-empty interface types — instead. In the code snippet above, it would have been more appropriate to define a `Person` struct with relevant typed fields similar to this:
+
+```go
+type Person struct {
+    Name   string
+    Age    int
+    Height float32
+}
+```
+
+But that said, the empty interface is useful in situations where you need to accept and work with unpredictable or user-defined types. You'll see it used in a number of places throughout the standard library for that exact reason, such as in the `gob.Encode`, `fmt.Print` and `template.Execute` functions.
+
+## The any identifier
+
+Go 1.18 introduced a new [predeclared identifier]() called `any`, which is an alias for the empty interface `interface{}`,
+
+The `any` identifier is straight-up syntactic sugar – using it in your code is equivalent in all ways to using `interface{}`– it means exactly the same thing and has exactly the same behaviour. So writing `map[string]any` in your code is exactly the same as writing `map[string]interface{}` in terms of it's behaviour.
+
+In most modern Go codebases, you'll normally see `any` being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
+
+## Common and useful interface types
+
+Lastly, here's a short list of some of the most common and useful interfaces in the standard library. If you're not familiar with them already, then I recommend taking out a bit of time to look at the relevant documentation for them.
+
+- [builtin.Error](https://pkg.go.dev/builtin/#error)
+- [fmt.Stringer](https://pkg.go.dev/fmt/#Stringer)
+- [io.Reader](https://pkg.go.dev/io/#Reader)
+- [io.Writer](https://pkg.go.dev/io/#Writer)
+- [io.ReadWriteCloser](https://pkg.go.dev/io/#ReadWriteCloser)
+- [http.ResponseWriter](https://pkg.go.dev/net/http/#ResponseWriter)
+- [http.Handler](https://pkg.go.dev/net/http/#Handler)
+
+There is also a longer and more comprehensive listing of standard libraries available [in this gist](https://gist.github.com/asukakenji/ac8a05644a2e98f1d5ea8c299541fce9).
