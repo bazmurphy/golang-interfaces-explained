@@ -18,9 +18,9 @@ type Stringer interface {
 }
 ```
 
-We say that something **satisfies this interface** (or **implements this `interface`**) if it has a method with the exact signature `String() string`.
+We say that something **satisfies this interface** (or **implements this `interface`**) if it has a `method` with the exact signature `String() string`.
 
-For example, the following `Book` `type` satisifies the `interface` because it has a `String() string` method:
+For example, the following `Book` `type` satisifies the `interface` because it has a `String() string` `method`:
 
 ```go
 type Book struct {
@@ -33,7 +33,7 @@ func (b Book) String() string {
 }
 ```
 
-It's not really important what this `Book` `type` is or does. The only thing that matters is that is has a method called `String()` which returns a `string` value.
+It's not really important what this `Book` `type` is or does. The only thing that matters is that is has a `method` called `String()` which returns a `string` value.
 
 Or, as another example, the following `Count` `type` also satisfies the `fmt.Stringer` `interface` — again because it has a method with the exact signature `String() string`.
 
@@ -47,7 +47,7 @@ func (c Count) String() string {
 
 The important thing to grasp is that we have two different `type`s, `Book` and `Count`, which do different things. But the thing they have in common is that they both satisfy the `fmt.Stringer` `interface`.
 
-You can think of this the other way around too. If you know that an object satisfies the `fmt.Stringer` interface, you can rely on it having a method with the exact signature `String() string` that you can call.
+You can think of this the other way around too. If you know that an object satisfies the `fmt.Stringer` interface, you can rely on it having a `method` with the exact signature `String() string` that you can call.
 
 Now for the important part.
 
@@ -61,9 +61,9 @@ func WriteLog(s fmt.Stringer) {
 }
 ```
 
-Because this `WriteLog()` function uses the `fmt.Stringer` `interface` `type` in its parameter declaration, we can pass in any object that satisfies the `fmt.Stringer` `interface`. For example, we could pass either of the `Book` and `Count` `type`s that we made earlier to the `WriteLog()` method, and the code would work OK.
+Because this `WriteLog()` function uses the `fmt.Stringer` `interface` `type` in its parameter declaration, we can pass in any object that satisfies the `fmt.Stringer` `interface`. For example, we could pass either of the `Book` and `Count` `type`s that we made earlier to the `WriteLog()` `method`, and the code would work OK.
 
-Additionally, because the object being passed in satisfies the `fmt.Stringer` `interface`, we know that it has a `String() string` method that the `WriteLog()` function can safely call.
+Additionally, because the object being passed in satisfies the `fmt.Stringer` `interface`, we know that it has a `String() string` `method` that the `WriteLog()` function can safely call.
 
 ```go
 package main
@@ -145,7 +145,7 @@ type Writer interface {
 }
 ```
 
-And we can leverage the fact that both `bytes.Buffer` and the `os.File` `type` satisfy this interface, due to them having the `bytes.Buffer.Write()` and `os.File.Write()` methods respectively.
+And we can leverage the fact that both `bytes.Buffer` and the `os.File` `type` satisfy this `interface`, due to them having the `bytes.Buffer.Write()` and `os.File.Write()` `method`s respectively.
 
 Let's take a look at a simple implementation:
 
@@ -205,7 +205,7 @@ func main() {
 }
 ```
 
-Of course, this is just a toy example (and there are other ways we could structure the code to achieve the same end result). But it nicely illustrates the benefit of using an `interface` — we can create the `Customer.WriteJSON()` method once, and we can call that method any time that we want to write to something that satisfies the `io.Writer` `interface`.
+Of course, this is just a toy example (and there are other ways we could structure the code to achieve the same end result). But it nicely illustrates the benefit of using an `interface` — we can create the `Customer.WriteJSON()` `method` once, and we can call that `method` any time that we want to write to something that satisfies the `io.Writer` `interface`.
 
 But if you're new to Go, this still begs a couple of questions: How do you know that the `io.Writer` `interface` even exists? And how do you know in advance that `bytes.Buffer` and `os.File` both satisfy it?
 
@@ -285,11 +285,9 @@ Now, what if we want to create a unit test for the `calculateSalesRate()` functi
 
 Currently this is a bit of a pain. We would need to set up a test instance of our PostgreSQL database, along with setup and teardown scripts to scaffold the database with dummy data. That's quite lot of work when all we really want to do is test our math logic.
 
-So what can we do? You guessed it — interfaces to the rescue!
+So what can we do? You guessed it — `interface`s to the rescue!
 
-A solution here is to create our own interface type which describes the `CountSales()` and `CountCustomers()` methods that the `calculateSalesRate()` function relies on. Then we can update the signature of `calculateSalesRate()` to use this custom interface type as a parameter, instead of the concrete `*ShopDB` type.
-
-Like so:
+A solution here is to create our own `interface` `type` which describes the `CountSales()` and `CountCustomers()` `method`s that the `calculateSalesRate()` function relies on. Then we can update the signature of `calculateSalesRate()` to use this custom `interface` `type` as a parameter, instead of the concrete `*ShopDB` `type`.
 
 ```go
 package main
@@ -314,6 +312,10 @@ type ShopModel interface {
 // The ShopDB type satisfies our new custom ShopModel interface, because it
 // has the two necessary methods -- CountCustomers() and CountSales().
 type ShopDB struct {
+	// NOTE
+	// (!) this struct has no explicit fields... this is an "embedded" anonymous field
+	// which is a pointer to the sql.DB struct from the database/sql package
+	// you are effectively embedding all of its exported methods and fields into this new struct
 	*sql.DB
 }
 
@@ -362,11 +364,14 @@ func calculateSalesRate(sm ShopModel) (string, error) {
 	rate := float64(sales) / float64(customers)
 	return fmt.Sprintf("%.2f", rate), nil
 }
+
 ```
 
-With that done, it's straightforward for us to create a mock which satisfies our `ShopModel` interface. We can then use that mock during unit tests to test that the math logic in our `calculateSalesRate()` function works correctly. Like so:
+With that done, it's straightforward for us to create a mock which satisfies our `ShopModel` `interface`. We can then use that mock during unit tests to test that the math logic in our `calculateSalesRate()` function works correctly. Like so:
 
 ```go
+// main_test.go
+
 package main
 
 import (
@@ -406,25 +411,25 @@ You could run that test now, everything should work fine.
 
 ### Application architecture
 
-In the previous examples, we've seen how interfaces can be used to decouple certain parts of your code from relying on concrete types. For instance, the `calculateSalesRate()` function is totally flexible about what you pass to it — the only thing that matters is that it satisfies the ShopModel interface.
+In the previous examples, we've seen how `interface`s can be used to decouple certain parts of your code from relying on concrete types. For instance, the `calculateSalesRate()` function is totally flexible about what you pass to it — the only thing that matters is that it satisfies the `ShopModel` interface.
 
 You can extend this idea to create decoupled 'layers' in larger projects.
 
-Let's say that you are building a web application which interacts with a database. If you create an interface that describes the exact methods for interacting with the database, you can refer to the interface throughout your HTTP handlers instead of a concrete type. Because the HTTP handlers only refer to an interface, this helps to decouple the HTTP layer and database-interaction layer. It makes it easier to work on the layers independently, and to swap out one layer in the future without affecting the other.
+Let's say that you are building a web application which interacts with a database. If you create an `interface` that describes the exact `method`s for interacting with the database, you can refer to the `interface` throughout your HTTP handlers instead of a concrete type. Because the HTTP handlers only refer to an `interface`, this helps to decouple the HTTP layer and database-interaction layer. It makes it easier to work on the layers independently, and to swap out one layer in the future without affecting the other.
 
 I've written about this pattern in this [previous blog post](https://www.alexedwards.net/blog/organising-database-access), which goes into more detail and provides some practical example code.
 
 ## What is the empty interface?
 
-If you've been programming with Go for a while, you've probably come across the empty interface type: `interface{}`. This can be a bit confusing, but I'll try to explain it here.
+If you've been programming with Go for a while, you've probably come across the `empty` `interface` type: `interface{}`. This can be a bit confusing, but I'll try to explain it here.
 
 At the start of this blog post I said:
 
-    An interface type in Go is kind of like a definition. It defines and describes the exact methods that some other type must have.
+- An `interface` `type` in Go is kind of like a definition. It defines and describes the exact `method`s that some other `type` must have.
 
-The empty interface type essentially describes no methods. It has no rules. And because of that, it follows that any and every object satisfies the empty interface.
+The `empty` `interface` `type` essentially describes no `method`s. It has no rules. And because of that, it follows that any and every object satisfies the `empty` `interface`.
 
-Or to put it in a more plain-English way, the empty interface type interface{} is kind of like a wildcard. Wherever you see it in a declaration (such as a variable, function parameter or struct field) you can use an object of any type.
+Or to put it in a more plain-English way, the `empty` `interface` `type` `interface{}` is kind of like a wildcard. Wherever you see it in a declaration (such as a variable, function parameter or struct field) you can use an object of any `type`.
 
 Take a look at the following code:
 
@@ -432,6 +437,7 @@ Take a look at the following code:
 package main
 
 import "fmt"
+
 
 func main() {
     person := make(map[string]interface{}, 0)
@@ -444,9 +450,9 @@ func main() {
 }
 ```
 
-In this code snippet we initialize a `person` map, which uses the `string` type for keys and the empty interface type `interface{}` for values. We've assigned three different types as the map values (a `string`, `int` and `float32`) — and that's OK. Because objects of any and every type satisfy the empty interface, the code will work just fine.
+In this code snippet we initialize a person `map`, which uses the `string` `type` for keys and the `empty` `interface` `type` `interface{}` for values. We've assigned three different `type`s as the `map` values (a `string`, `int` and `float32`) — and that's OK. Because objects of any and every type satisfy the `empty interface`, the code will work just fine.
 
-You can give it a try here, and when you run it you should see some output which looks like this:
+You can give it a try, and when you run it you should see some output which looks like this:
 
 ```
 map[age:21 height:167.64 name:Alice]
@@ -454,12 +460,12 @@ map[age:21 height:167.64 name:Alice]
 
 But there's an important thing to point out when it comes to retrieving and using a value from this map.
 
-For example, let's say that we want to get the `"age"` value and increment it by 1. If you write something like the following code, it will fail to compile:
+For example, let's say that we want to get the "`age`" value and increment it by 1. If you write something like the following code, it will fail to compile:
 
 ```go
 package main
 
-import "fmt"
+import "log"
 
 func main() {
     person := make(map[string]interface{}, 0)
@@ -480,9 +486,9 @@ And you'll get the following error message:
 invalid operation: person["age"] + 1 (mismatched types interface {} and int)
 ```
 
-This happens because the value stored in the map takes on the type `interface{}`, and ceases to have it's original, underlying, type of `int`. Because it's no longer an `int` type we cannot add 1 to it.
+This happens because the value stored in the `map` takes on the `type` `interface{}`, and ceases to have it's original, underlying, `type` of `int`. Because it's no longer an `int` type we cannot add 1 to it.
 
-To get around this this, you need to type assert the value back to an `int` before using it. Like so:
+To get around this this, you need to `type` assert the value back to an `int` before using it. Like so:
 
 ```go
 package main
@@ -511,12 +517,12 @@ func main() {
 If you run this now, everything should work as expected:
 
 ```
-map[age:22 height:167.64 name:Alice]
+2009/11/10 23:00:00 map[age:22 height:167.64 name:Alice]
 ```
 
-So when should you use the empty interface type in your own code?
+So when should you use the `empty` `interface` `type` in your own code?
 
-The answer is probably not that often. If you find yourself reaching for it, pause and consider whether using `interface{}` is really the right option. As a general rule it's clearer, safer and more performant to use concrete types — or non-empty interface types — instead. In the code snippet above, it would have been more appropriate to define a `Person` struct with relevant typed fields similar to this:
+The answer is probably not that often. If you find yourself reaching for it, pause and consider whether using `interface{}` is really the right option. As a general rule it's clearer, safer and more performant to use `concrete` `type`s — or `non-empty` `interface` `types` — instead. In the code snippet above, it would have been more appropriate to define a `Person` `struct` with relevant typed `fields` similar to this:
 
 ```go
 type Person struct {
@@ -526,15 +532,15 @@ type Person struct {
 }
 ```
 
-But that said, the empty interface is useful in situations where you need to accept and work with unpredictable or user-defined types. You'll see it used in a number of places throughout the standard library for that exact reason, such as in the `gob.Encode`, `fmt.Print` and `template.Execute` functions.
+But that said, the `empty` `interface` is useful in situations where you need to accept and work with unpredictable or user-defined types. You'll see it used in a number of places throughout the standard library for that exact reason, such as in the `gob.Encode`, `fmt.Print` and `template.Execute` functions.
 
 ## The any identifier
 
-Go 1.18 introduced a new [predeclared identifier]() called `any`, which is an alias for the empty interface `interface{}`,
+There is a predeclared identifier called `any`, which is an alias for the empty interface `interface{}`
 
-The `any` identifier is straight-up syntactic sugar – using it in your code is equivalent in all ways to using `interface{}`– it means exactly the same thing and has exactly the same behaviour. So writing `map[string]any` in your code is exactly the same as writing `map[string]interface{}` in terms of it's behaviour.
+The `any` identifier is straight-up syntactic sugar – using it in your code is equivalent in all ways to using `interface{}` – it means exactly the same thing and has exactly the same behavior. So writing `map[string]any` in your code is exactly the same as writing `map[string]interface{}` in terms of it's behavior.
 
-In most modern Go codebases, you'll normally see `any` being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
+n most modern Go codebases, you'll normally see any being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
 
 ## Common and useful interface types
 
@@ -548,4 +554,4 @@ Lastly, here's a short list of some of the most common and useful interfaces in 
 - [http.ResponseWriter](https://pkg.go.dev/net/http/#ResponseWriter)
 - [http.Handler](https://pkg.go.dev/net/http/#Handler)
 
-There is also a longer and more comprehensive listing of standard libraries available [in this gist](https://gist.github.com/asukakenji/ac8a05644a2e98f1d5ea8c299541fce9).
+There is also a longer and more comprehensive listing of standard libraries available in [this gist](https://gist.github.com/asukakenji/ac8a05644a2e98f1d5ea8c299541fce9).

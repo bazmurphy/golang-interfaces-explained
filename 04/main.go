@@ -20,6 +20,10 @@ type ShopModel interface {
 // The ShopDB type satisfies our new custom ShopModel interface, because it
 // has the two necessary methods -- CountCustomers() and CountSales().
 type ShopDB struct {
+	// NOTE
+	// (!) this struct has no explicit fields... this is an "embedded" anonymous field
+	// which is a pointer to the sql.DB struct from the database/sql package
+	// you are effectively embedding all of its exported methods and fields into this new struct
 	*sql.DB
 }
 
