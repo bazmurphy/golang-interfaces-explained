@@ -540,7 +540,7 @@ There is a predeclared identifier called `any`, which is an alias for the empty 
 
 The `any` identifier is straight-up syntactic sugar – using it in your code is equivalent in all ways to using `interface{}` – it means exactly the same thing and has exactly the same behavior. So writing `map[string]any` in your code is exactly the same as writing `map[string]interface{}` in terms of it's behavior.
 
-n most modern Go codebases, you'll normally see any being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
+In most modern Go codebases, you'll normally see `any` being used rather than `interface{}`. This is simply because it's shorter and saves typing, and more clearly conveys to the reader that you can use any type here.
 
 ## Common and useful interface types
 

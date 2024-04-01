@@ -56,3 +56,9 @@ func calculateSalesRate(sdb *ShopDB) (string, error) {
 	rate := float64(sales) / float64(customers)
 	return fmt.Sprintf("%.2f", rate), nil
 }
+
+// Now, what if we want to create a unit test for the calculateSalesRate() function to make sure that the math logic in it is working correctly?
+
+// Currently this is a bit of a pain. We would need to set up a test instance of our PostgreSQL database, along with setup and teardown scripts to scaffold the database with dummy data. That's quite lot of work when all we really want to do is test our math logic.
+
+// So what can we do? You guessed it — interfaces to the rescue!
